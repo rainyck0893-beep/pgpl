@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#08090f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PGPL">
+<meta name="description" content="AI offline chạy trên điện thoại">
+<link rel="manifest" href="manifest.json">
+<title>PGPL — Offline AI</title>
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+/* ── Reset & Base ─────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:       #08090f;
+  --surface:  #0d0f1a;
+  --surface2: #131520;
+  --border:   #1a1f35;
+  --border2:  #242840;
+  --accent:   #4f8ef7;
+  --accent2:  #7c5cfc;
+  --green:    #22c55e;
+  --orange:   #f97316;
+  --red:      #ef4444;
+  --text:     #e8eaf0;
+  --text2:    #8892b0;
+  --text3:    #4a5270;
+  --user-bg:  #0f1628;
+  --ai-bg:    #0a0f1e;
+  --radius:   16px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bot: env(safe-area-inset-bottom, 0px);
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Outfit', sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Layout ───────────────────────────────────────── */
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  max-width: 480px;
+  margin: 0 auto;
+  position: relative;
+}
+
+/* ── Header ───────────────────────────────────────── */
+#header {
+  flex-shrink: 0;
+  padding: calc(var(--safe-top) + 10px) 16px 10px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+  z-index: 10;
+}
+
+.logo-mark {
+  width: 38px; height: 38px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 500;
+  font-size: 12px;
+  color: #fff;
+  flex-shrink: 0;
+  box-shadow: 0 0 20px #4f8ef730;
+}
+
+.header-text { flex: 1; }
+.header-title {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  color: var(--text);
+}
+.header-sub {
+  font-size: 11px;
+  color: var(--text3);
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: 0.05em;
+}
+
+.status-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--text3);
+  transition: all 0.4s;
+  box-shadow: none;
+}
+.status-dot.online {
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green);
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%,100% { opacity: 1; }
+  50%      { opacity: 0.5; }
+}
+
+/* ── Stats bar ────────────────────────────────────── */
+#statsbar {
+  flex-shrink: 0;
+  display: flex;
+  gap: 0;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+#statsbar::-webkit-scrollbar { display: none; }
+
+.stat-chip {
+  flex-shrink: 0;
+  padding: 5px 12px;
+  font-size: 10.5px;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--text3);
+  border-right: 1px solid var(--border);
+  white-space: nowrap;
+  transition: color 0.3s;
+}
+.stat-chip span { color: var(--accent); }
+
+/* ── Chat area ────────────────────────────────────── */
+#chat {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 12px 12px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  scroll-behavior: smooth;
+}
+#chat::-webkit-scrollbar { width: 2px; }
+#chat::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+/* ── Messages ─────────────────────────────────────── */
+.msg-wrap {
+  display: flex;
+  flex-direction: column;
+  animation: slide-up 0.25s ease forwards;
+  opacity: 0;
+}
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.msg-role {
+  font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--text3);
+  margin-bottom: 3px;
+  letter-spacing: 0.08em;
+}
+.msg-wrap.user .msg-role { text-align: right; color: var(--accent); }
+.msg-wrap.ai .msg-role   { color: var(--accent2); }
+
+.bubble {
+  padding: 11px 14px;
+  border-radius: var(--radius);
+  font-size: 14.5px;
+  line-height: 1.65;
+  max-width: 92%;
+  word-break: break-word;
+  white-space: pre-wrap;
+  border: 1px solid transparent;
+}
+.msg-wrap.user {
+  align-items: flex-end;
+}
+.msg-wrap.user .bubble {
+  background: var(--user-bg);
+  border-color: var(--border2);
+  border-radius: var(--radius) 6px var(--radius) var(--radius);
+  color: var(--text);
+}
+.msg-wrap.ai {
+  align-items: flex-start;
+}
+.msg-wrap.ai .bubble {
+  background: var(--ai-bg);
+  border-color: var(--border);
+  border-radius: 6px var(--radius) var(--radius) var(--radius);
+  color: var(--text);
+}
+.msg-wrap.system .bubble {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text3);
+  font-size: 12px;
+  font-family: 'JetBrains Mono', monospace;
+  text-align: center;
+  max-width: 100%;
+  padding: 6px 0;
+}
+
+/* ── Typing indicator ─────────────────────────────── */
+#typing {
+  display: none;
+  align-items: center;
+  gap: 5px;
+  padding: 10px 14px;
+  margin: 2px 0;
+}
+#typing.show { display: flex; }
+.typing-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--accent2);
+  animation: bounce 1.2s ease-in-out infinite;
+}
+.typing-dot:nth-child(2) { animation-delay: 0.15s; }
+.typing-dot:nth-child(3) { animation-delay: 0.30s; }
+@keyframes bounce {
+  0%,80%,100% { transform: scale(0.7); opacity: 0.4; }
+  40%          { transform: scale(1.1); opacity: 1; }
+}
+.typing-label {
+  font-size: 11px;
+  color: var(--text3);
+  font-family: 'JetBrains Mono', monospace;
+  margin-left: 4px;
+}
+
+/* ── Input area ───────────────────────────────────── */
+#input-area {
+  flex-shrink: 0;
+  padding: 10px 12px calc(var(--safe-bot) + 10px);
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+}
+
+.input-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  background: var(--surface2);
+  border: 1.5px solid var(--border2);
+  border-radius: 20px;
+  padding: 8px 8px 8px 16px;
+  transition: border-color 0.2s;
+}
+.input-row:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px #4f8ef715;
+}
+
+#input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-family: 'Outfit', sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  resize: none;
+  max-height: 120px;
+  min-height: 24px;
+}
+#input::placeholder { color: var(--text3); }
+
+#send-btn {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: #fff;
+  font-size: 16px;
+  cursor: pointer;
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s;
+  box-shadow: 0 2px 12px #4f8ef740;
+}
+#send-btn:active { transform: scale(0.92); }
+#send-btn:disabled {
+  background: var(--border2);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+/* ── Quick commands ───────────────────────────────── */
+#quick-cmds {
+  display: flex;
+  gap: 6px;
+  padding: 0 12px 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex-shrink: 0;
+}
+#quick-cmds::-webkit-scrollbar { display: none; }
+.cmd-pill {
+  flex-shrink: 0;
+  padding: 4px 12px;
+  border-radius: 20px;
+  border: 1px solid var(--border2);
+  background: var(--surface2);
+  color: var(--text2);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.cmd-pill:active { background: var(--border2); color: var(--text); }
+
+/* ── Install banner ───────────────────────────────── */
+#install-banner {
+  margin: 8px 12px 0;
+  padding: 10px 14px;
+  background: linear-gradient(135deg, #4f8ef710, #7c5cfc10);
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  display: none;
+  align-items: center;
+  gap: 10px;
+  animation: slide-up 0.3s ease forwards;
+  flex-shrink: 0;
+}
+#install-banner.show { display: flex; }
+.install-text { flex: 1; font-size: 13px; color: var(--text2); }
+.install-text b { color: var(--text); display: block; font-size: 13.5px; }
+#install-btn {
+  padding: 7px 14px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  border: none;
+  border-radius: 20px;
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+  font-family: 'Outfit', sans-serif;
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- Header -->
+  <div id="header">
+    <div class="logo-mark">PG</div>
+    <div class="header-text">
+      <div class="header-title">PGPL</div>
+      <div class="header-sub" id="mode-label">Đang khởi động...</div>
+    </div>
+    <div class="status-dot" id="status-dot"></div>
+  </div>
+
+  <!-- Install banner -->
+  <div id="install-banner">
+    <div class="install-text">
+      <b>📲 Cài như app thật</b>
+      Thêm vào màn hình chính để dùng offline hoàn toàn
+    </div>
+    <button id="install-btn">Cài đặt</button>
+  </div>
+
+  <!-- Stats bar -->
+  <div id="statsbar">
+    <div class="stat-chip">QBIT <span id="stat-mode">synth</span></div>
+    <div class="stat-chip">nodes <span id="stat-nodes">0</span></div>
+    <div class="stat-chip">mesh <span id="stat-mesh">0</span></div>
+    <div class="stat-chip">🔒 <span id="stat-priv">0</span> blocked</div>
+    <div class="stat-chip">latency <span id="stat-ms">—</span></div>
+  </div>
+
+  <!-- Chat -->
+  <div id="chat">
+    <div id="typing">
+      <div class="typing-dot"></div>
+      <div class="typing-dot"></div>
+      <div class="typing-dot"></div>
+      <span class="typing-label">đang suy nghĩ...</span>
+    </div>
+  </div>
+
+  <!-- Quick commands -->
+  <div id="quick-cmds">
+    <div class="cmd-pill" onclick="quickCmd('/stats')">📊 Stats</div>
+    <div class="cmd-pill" onclick="quickCmd('/damage 0.5')">⚡ Test phục hồi</div>
+    <div class="cmd-pill" onclick="quickCmd('Python là gì?')">Python</div>
+    <div class="cmd-pill" onclick="quickCmd('Tại sao dùng Rust?')">Rust</div>
+    <div class="cmd-pill" onclick="quickCmd('AI offline hoạt động thế nào?')">AI offline</div>
+    <div class="cmd-pill" onclick="quickCmd('So sánh React và Vue')">React vs Vue</div>
+  </div>
+
+  <!-- Input -->
+  <div id="input-area">
+    <div class="input-row">
+      <textarea id="input" rows="1"
+        placeholder="Hỏi PGPL bất cứ điều gì..."
+        autocomplete="off" autocorrect="off" spellcheck="false"></textarea>
+      <button id="send-btn" onclick="send()" disabled>↑</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════
+// PGPL ENGINE — JavaScript port của engine Python
+// Chạy hoàn toàn offline trong browser
+// ═══════════════════════════════════════════════════
+
+const INTENTS = {
+  define:    [/là gì/,/what is/i,/giải thích/,/explain/i],
+  compare:   [/so sánh/,/\bvs\b/i,/compare/i,/khác nhau/],
+  howto:     [/\bcách\b/,/how to/i,/hướng dẫn/,/làm thế nào/],
+  reason:    [/tại sao/,/\bwhy\b/i,/vì sao/,/nguyên nhân/],
+  list:      [/liệt kê/,/\blist\b/i,/các loại/,/examples/i],
+  evaluate:  [/đánh giá/,/nên không/,/\bshould\b/i,/worth/i],
+  create:    [/\bviết\b/,/\btạo\b/,/generate/i,/\bwrite\b/i,/\bcode\b/i],
+  calculate: [/\btính\b/,/calculate/i,/bằng bao nhiêu/],
+};
+const DOMAINS = {
+  tech:    ['code','python','api','model','ai','llm','offline','lập trình','rust','javascript','install','framework'],
+  science: ['vật lý','hóa học','sinh học','quantum','physics','chemistry','biology'],
+  math:    ['toán','tính','số','formula','equation','calculate'],
+  daily:   ['ăn','uống','sức khỏe','health','thời tiết','tiền','money'],
+};
+const STOPS = new Set(['là','gì','có','và','của','một','the','is','a','an','what','how','why','when','in','to','of','for','with','that','this']);
+
+function kw(text) {
+  return [...text.toLowerCase().matchAll(/\b\w{3,}\b/g)]
+    .map(m=>m[0]).filter(w=>!STOPS.has(w)).slice(0,8);
+}
+
+// ── QBIT: think ─────────────────────────────────────
+function think(text) {
+  const tl = text.toLowerCase();
+  let intent = 'general';
+  for(const [k,pats] of Object.entries(INTENTS))
+    if(pats.some(p=>p.test(tl))){ intent=k; break; }
+
+  let domain = 'general';
+  for(const [d,kws] of Object.entries(DOMAINS))
+    if(kws.some(k=>tl.includes(k))){ domain=d; break; }
+
+  const lang = /[àáạảãăắặẳẵâấậẩẫèéẹẻẽìíịỉĩòóọỏõùúụủũơưđ]/.test(tl) ? 'vi' : 'en';
+  const clauses = (tl.match(/[,;:]|\bvà\b|\band\b/g)||[]).length+1;
+  const depth = clauses<2?'shallow':clauses>4?'deep':'medium';
+
+  const STRATS = {
+    define:['Định nghĩa khái niệm','Cho ví dụ thực tế','Lưu ý ngoại lệ'],
+    compare:['Phân tích từng phương án','Đánh giá ưu nhược điểm','Kết luận lựa chọn'],
+    howto:['Chuẩn bị','Thực hiện từng bước','Kiểm tra kết quả'],
+    reason:['Xác định nguyên nhân','Phân tích cơ chế','Rút ra bài học'],
+    create:['Xác định yêu cầu','Thiết kế cấu trúc','Triển khai và kiểm tra'],
+    list:['Liệt kê đầy đủ','Phân loại','Xếp hạng theo độ quan trọng'],
+    evaluate:['Phân tích ưu điểm','Phân tích nhược điểm','Đưa ra khuyến nghị'],
+    general:['Thu thập thông tin','Tổng hợp','Trả lời trực tiếp'],
+  };
+  const steps = STRATS[intent]||STRATS.general;
+  return { intent, domain, lang, depth, steps };
+}
+
+// ── Knowledge Base ─────────────────────────────────
+const KB = {
+  python: {
+    def: 'Python là ngôn ngữ lập trình bậc cao, cú pháp dễ đọc như tiếng Anh, được dùng phổ biến nhất trong AI/ML, web backend (Django, FastAPI), khoa học dữ liệu và tự động hoá. Tạo ra năm 1991 bởi Guido van Rossum.',
+    why: 'Python phổ biến vì: cú pháp đơn giản (viết ít code hơn Java 5-10x), hệ sinh thái thư viện khổng lồ (NumPy, TensorFlow, PyTorch), cộng đồng lớn, chạy được trên mọi nền tảng.',
+    how: '1. Tải Python tại python.org\n2. Cài editor: VS Code hoặc PyCharm\n3. Học cơ bản: biến, if/else, vòng lặp, hàm\n4. Làm project nhỏ: calculator, web scraper\n5. Học thư viện: requests, pandas, flask',
+  },
+  rust: {
+    def: 'Rust là ngôn ngữ lập trình hệ thống do Mozilla phát triển, nổi bật với memory safety không cần garbage collector. Nhanh ngang C/C++ nhưng an toàn hơn nhiều.',
+    why: 'Dùng Rust khi cần: hiệu năng cực cao (game engine, OS, trình duyệt), không muốn bug memory leak/null pointer, viết WebAssembly, lập trình nhúng. Stack Overflow bình chọn ngôn ngữ yêu thích nhất 8 năm liền.',
+    compare_python: 'Rust vs Python:\n• Tốc độ: Rust nhanh hơn 10-100x\n• An toàn: Rust kiểm tra lỗi lúc compile, Python lỗi lúc runtime\n• Học: Python dễ hơn nhiều (Rust có learning curve dốc)\n• Dùng khi: Rust cho system/performance, Python cho AI/script/prototype',
+  },
+  ai_offline: {
+    def: 'AI offline (on-device AI) là mô hình AI chạy trực tiếp trên thiết bị người dùng, không cần kết nối internet. Dữ liệu không rời thiết bị, phản hồi nhanh hơn, hoạt động không cần mạng.',
+    why: 'AI offline quan trọng vì: bảo mật tuyệt đối (dữ liệu không lên cloud), không tốn phí API, hoạt động ở vùng không có mạng, độ trễ thấp hơn (không phụ thuộc mạng), phù hợp thiết bị IoT/nhúng.',
+    how: 'Cách triển khai AI offline:\n1. Dùng model đã quantize (INT4/INT8) — giảm RAM 4-8x\n2. llama.cpp: chạy LLM trên CPU, hỗ trợ mọi thiết bị\n3. GGUF format: model nén cho inference hiệu quả\n4. Model nhỏ: Phi-3 Mini (3.8B), Gemma-2 2B, Qwen 1.5B\n5. PWA hoặc APK để đóng gói',
+  },
+  llm: {
+    def: 'LLM (Large Language Model) là mô hình AI được train trên lượng text khổng lồ, có khả năng hiểu và sinh ngôn ngữ tự nhiên. Ví dụ: GPT-4, Claude, Gemini, LLaMA.',
+    how: 'Chạy LLM offline:\n1. Tải model GGUF từ HuggingFace\n2. Cài llama.cpp hoặc Ollama\n3. Chọn model theo RAM:\n   • 1GB: TinyLlama 1.1B\n   • 2GB: Qwen 2.5 1.5B\n   • 4GB: Phi-3 Mini 3.8B\n   • 8GB: Gemma-2 9B',
+  },
+  quantization: {
+    def: 'Quantization là kỹ thuật nén model AI bằng cách giảm độ chính xác của trọng số từ 32-bit float xuống 8-bit (INT8) hoặc 4-bit (INT4). Giảm RAM 4-8x, tốc độ tăng, độ chính xác giảm nhẹ.',
+  },
+  react: {
+    def: 'React là thư viện JavaScript của Meta để xây dựng giao diện người dùng. Dùng component-based architecture, Virtual DOM giúp render nhanh.',
+    compare_vue: 'React vs Vue:\n• React: linh hoạt hơn, hệ sinh thái lớn hơn, JSX, phổ biến hơn ở doanh nghiệp lớn\n• Vue: học dễ hơn, template syntax quen thuộc, tài liệu tốt hơn, phổ biến hơn ở startup châu Á\n• Hiệu năng: tương đương nhau\n• Chọn React nếu muốn nhiều job hơn; Vue nếu muốn học nhanh hơn',
+  },
+  pgpl: {
+    def: 'PGPL (Portable General-Purpose Learner) là AI offline chạy hoàn toàn trên thiết bị. Kiến trúc gồm:\n• QBIT Engine: tư duy 4 tầng Q→P→I→T\n• Mycelium Memory: bộ nhớ phân tán như nấm nhầy, tự phục hồi\n• Neural Mesh: mạng P2P chia sẻ tri thức ẩn danh\n• Privacy Shield: tuyệt đối không lộ thông tin cá nhân',
+    why: 'PGPL được tạo ra để: chạy trên điện thoại Android cũ, máy tính không GPU, Raspberry Pi. Không cần internet, không cần cloud, dữ liệu ở trên máy bạn. Phù hợp vùng sâu vùng xa, bảo mật cao, chi phí zero.',
+  },
+};
+
+function lookupKB(text) {
+  const tl = text.toLowerCase();
+  if(tl.match(/python/)) return { topic:'python', data:KB.python };
+  if(tl.match(/\brust\b/)) return { topic:'rust', data:KB.rust };
+  if(tl.match(/ai.*(off|local|device)|offline.*ai|on.device/)) return { topic:'ai_offline', data:KB.ai_offline };
+  if(tl.match(/\bllm\b|large.language|mô hình ngôn ngữ/)) return { topic:'llm', data:KB.llm };
+  if(tl.match(/quantiz|lượng tử.*(model|mô hình)/)) return { topic:'quantization', data:KB.quantization };
+  if(tl.match(/\breact\b/)) return { topic:'react', data:KB.react };
+  if(tl.match(/\bpgpl\b/)) return { topic:'pgpl', data:KB.pgpl };
+  return null;
+}
+
+// ── Synthesizer ─────────────────────────────────────
+function synthesize(text, chain) {
+  const tl = text.toLowerCase();
+  const hit = lookupKB(text);
+  const { intent, domain, steps } = chain;
+
+  // ── Câu trả lời từ KB ──
+  if(hit) {
+    const { topic, data } = hit;
+    if(intent==='define' && data.def) return data.def;
+    if(intent==='reason' && data.why) return data.why;
+    if(intent==='howto'  && data.how) return data.how;
+    if(intent==='compare') {
+      if(topic==='rust' && /python/.test(tl)) return data.compare_python;
+      if(topic==='react' && /vue/.test(tl)) return data.compare_vue;
+    }
+    if(data.def) return data.def; // fallback to def
+  }
+
+  // ── Template synthesis ──
+  const sub = text.replace(/\b(là gì|gì|cách|tại sao|vì sao|so sánh|hướng dẫn|giải thích|nên không|what is|how to|why|explain|compare)\b/gi,'').replace(/[?!.,]/g,'').trim().slice(0,50) || text.slice(0,40);
+  const domLabel = {tech:'công nghệ',science:'khoa học',math:'toán học',daily:'cuộc sống',general:'nhiều lĩnh vực'}[domain]||'nhiều lĩnh vực';
+
+  const map = {
+    define:   `${sub} là khái niệm thuộc lĩnh vực ${domLabel}.\n\nĐể hiểu rõ hơn, bạn có thể hỏi cụ thể hơn về:\n• Định nghĩa chi tiết\n• Ví dụ thực tế\n• Cách ứng dụng`,
+    compare:  `So sánh trong ${domLabel}:\n${steps.map((s,i)=>`${i+1}. ${s}`).join('\n')}\n\nHãy hỏi cụ thể hai thứ bạn muốn so sánh (ví dụ: "So sánh React và Vue").`,
+    howto:    `Để ${sub}:\n${steps.map((s,i)=>`${i+1}. ${s}`).join('\n')}\n\nHỏi thêm nếu cần hướng dẫn chi tiết hơn từng bước.`,
+    reason:   `${sub} do những yếu tố chính trong ${domLabel}:\n${steps.map(s=>`• ${s}`).join('\n')}`,
+    list:     `Các yếu tố chính trong ${domLabel}:\n${steps.map(s=>`• ${s}`).join('\n')}`,
+    create:   `Tạo ${sub} trong ${domLabel}:\n${steps.map((s,i)=>`${i+1}. ${s}`).join('\n')}`,
+    evaluate: `Đánh giá ${sub}:\n${steps.map(s=>`• ${s}`).join('\n')}`,
+    general:  `Về "${sub}" trong ${domLabel}:\n${steps.map(s=>`• ${s}`).join('\n')}\n\nHỏi cụ thể hơn để tôi trả lời chi tiết hơn nhé!`,
+  };
+  return map[intent]||map.general;
+}
+
+// ── Mycelium Memory (lightweight JS) ────────────────
+class Memory {
+  constructor() {
+    this.nodes = new Map();
+    this.idx   = new Map();
+    this._n    = 0;
+    this._load();
+  }
+  _key(text) {
+    let h = 0;
+    for(const c of text) h=(Math.imul(31,h)+c.charCodeAt(0))|0;
+    return (h>>>0).toString(16).slice(0,8);
+  }
+  learn(q, a, w=0.7) {
+    const sk  = this._key(q);
+    const nid = sk+'-'+(this._n++);
+    this.nodes.set(nid, {sk, q:q.slice(0,100), a:a.slice(0,300), w, ts:Date.now(), fired:0});
+    const ki = `k:${sk}`;
+    if(!this.idx.has(ki)) this.idx.set(ki,[]);
+    this.idx.get(ki).push(nid);
+    for(const word of kw(q)) {
+      const ki2=`w:${word}`;
+      if(!this.idx.has(ki2)) this.idx.set(ki2,[]);
+      this.idx.get(ki2).push(nid);
+    }
+    if(this.nodes.size % 5 === 0) this._save();
+  }
+  recall(query) {
+    const scores = new Map();
+    for(const word of kw(query)) {
+      for(const nid of this.idx.get(`w:${word}`)||[]) {
+        if(this.nodes.has(nid)) {
+          const n = this.nodes.get(nid);
+          const dt = (Date.now()-n.ts)/86400000;
+          const decayed = n.w * Math.exp(-Math.LN2*dt/7);
+          scores.set(n.sk, (scores.get(n.sk)||0)+decayed);
+        }
+      }
+    }
+    const best = [...scores.entries()].sort((a,b)=>b[1]-a[1])[0];
+    if(!best) return null;
+    const [sk] = best;
+    for(const [,n] of this.nodes) {
+      if(n.sk===sk){ n.fired++; n.w=Math.min(1,n.w+0.05); return n; }
+    }
+    return null;
+  }
+  _save() {
+    try {
+      const data = {nodes:[...this.nodes.entries()],idx:[...this.idx.entries()],n:this._n};
+      localStorage.setItem('pgpl_memory', JSON.stringify(data));
+    } catch(e){}
+  }
+  _load() {
+    try {
+      const raw = localStorage.getItem('pgpl_memory');
+      if(!raw) return;
+      const {nodes,idx,n} = JSON.parse(raw);
+      this.nodes = new Map(nodes);
+      this.idx   = new Map(idx.map(([k,v])=>[k,v]));
+      this._n    = n||0;
+    } catch(e){}
+  }
+  get stats() {
+    return { nodes: this.nodes.size, patterns: new Set([...this.nodes.values()].map(n=>n.sk)).size };
+  }
+}
+
+// ── Mesh (lightweight) ───────────────────────────────
+class Mesh {
+  constructor() { this.kb=[]; this.blocked=0; this.sent=0; }
+  share(q,a,conf) {
+    const PII=/(\+84|0)\d{9}|[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}|\b\d{12}\b/i;
+    if(PII.test(q)||PII.test(a)){ this.blocked++; return; }
+    this.kb.push({h:q.slice(0,8),c:conf,ts:Date.now()});
+    if(this.kb.length>200) this.kb=this.kb.slice(-150);
+    this.sent++;
+  }
+  get stats() { return {vectors:this.kb.length, blocked:this.blocked}; }
+}
+
+// ── PGPL Core ────────────────────────────────────────
+class PGPL {
+  constructor() {
+    this.mem   = new Memory();
+    this.mesh  = new Mesh();
+    this._n    = 0;
+    this._ms   = 0;
+  }
+  ask(text) {
+    const t0 = performance.now();
+    this._n++;
+    const chain = think(text);
+    const mem   = this.mem.recall(text);
+    let answer  = synthesize(text, chain);
+    if(mem && mem.a && !answer.includes(mem.a.slice(0,20)))
+      answer += `\n\n[Bộ nhớ liên quan: ${mem.a.slice(0,80)}...]`;
+    this.mem.learn(text, answer, chain.intent==='define'?0.8:0.7);
+    this.mesh.share(text, answer, 0.75);
+    this._ms = performance.now()-t0;
+    return answer;
+  }
+  cmd(text) {
+    const t = text.toLowerCase().trim();
+    if(t==='/stats'||t==='stats') {
+      const m=this.mem.stats, ms=this.mesh.stats;
+      return `📊 PGPL Stats\n\nEngine: QBIT Synthesizer\nSessions: ${this._n}\nLatency: ${this._ms.toFixed(1)}ms\n\nMemory:\n• Nodes: ${m.nodes}\n• Patterns: ${m.patterns}\n\nMesh:\n• Vectors: ${ms.vectors}\n• PII blocked: ${ms.blocked}\n\nStorage: LocalStorage (offline)`;
+    }
+    if(t.startsWith('/damage')) {
+      const pct = parseFloat(t.split(' ')[1]||'0.5');
+      const before = this.mem.nodes.size;
+      const kill = Math.floor(before*pct);
+      const keys = [...this.mem.nodes.keys()].sort(()=>Math.random()-0.5).slice(0,kill);
+      keys.forEach(k=>this.mem.nodes.delete(k));
+      const sprouted = Math.floor(kill*0.4);
+      return `⚡ Mô phỏng mất dữ liệu\n\nTrước: ${before} nodes\nXóa: ${kill} nodes (${Math.round(pct*100)}%)\nCòn lại: ${this.mem.nodes.size} nodes\nTái tạo: +${sprouted} nodes mới\n\n→ Mycelium tự phục hồi như giun đầu búa 🪱`;
+    }
+    if(t==='xin chào'||t==='hello'||t==='hi')
+      return 'Xin chào! Tôi là PGPL — AI chạy hoàn toàn offline trên thiết bị của bạn.\n\nHỏi tôi bất cứ điều gì về lập trình, AI, công nghệ, hay cuộc sống!';
+    return null;
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// UI
+// ═══════════════════════════════════════════════════
+const pgpl = new PGPL();
+let deferredPrompt = null;
+
+// ── Init ────────────────────────────────────────────
+window.addEventListener('load', () => {
+  if('serviceWorker' in navigator)
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  setTimeout(onReady, 400);
+});
+
+function onReady() {
+  document.getElementById('status-dot').classList.add('online');
+  const m = pgpl.mem.stats;
+  document.getElementById('mode-label').textContent = `QBIT · ${m.nodes} nodes`;
+  updateStats();
+  addMsg('system', `PGPL sẵn sàng · ${m.nodes} nodes · offline`);
+  if(m.nodes===0)
+    setTimeout(()=>addMsg('ai','Xin chào! Tôi là PGPL 👋\n\nAI chạy hoàn toàn trên điện thoại bạn — không cần internet, không lộ dữ liệu.\n\nHỏi tôi bất cứ điều gì!'), 600);
+  document.getElementById('send-btn').disabled = false;
+}
+
+// ── PWA Install ────────────────────────────────────
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  document.getElementById('install-banner').classList.add('show');
+});
+document.getElementById('install-btn').addEventListener('click', async () => {
+  if(!deferredPrompt) return;
+  deferredPrompt.prompt();
+  const { outcome } = await deferredPrompt.userChoice;
+  deferredPrompt = null;
+  document.getElementById('install-banner').classList.remove('show');
+});
+window.addEventListener('appinstalled', () => {
+  document.getElementById('install-banner').classList.remove('show');
+});
+
+// ── Input ───────────────────────────────────────────
+const inputEl = document.getElementById('input');
+inputEl.addEventListener('input', () => {
+  inputEl.style.height = 'auto';
+  inputEl.style.height = Math.min(inputEl.scrollHeight, 120)+'px';
+});
+inputEl.addEventListener('keydown', e => {
+  if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(); }
+});
+
+function quickCmd(text) {
+  inputEl.value = text;
+  send();
+}
+
+// ── Send ────────────────────────────────────────────
+let busy = false;
+function send() {
+  const q = inputEl.value.trim();
+  if(!q || busy) return;
+  inputEl.value=''; inputEl.style.height='auto';
+  addMsg('user', q);
+  busy=true;
+  document.getElementById('send-btn').disabled=true;
+  document.getElementById('typing').classList.add('show');
+  scrollBottom();
+
+  setTimeout(()=>{
+    const cmdResult = pgpl.cmd(q);
+    const ans = cmdResult !== null ? cmdResult : pgpl.ask(q);
+    document.getElementById('typing').classList.remove('show');
+    addMsg('ai', ans);
+    updateStats();
+    busy=false;
+    document.getElementById('send-btn').disabled=false;
+    scrollBottom();
+  }, 300+Math.random()*400);
+}
+
+// ── Render ──────────────────────────────────────────
+function addMsg(role, text) {
+  const chat = document.getElementById('chat');
+  const typing = document.getElementById('typing');
+  const wrap = document.createElement('div');
+  wrap.className = `msg-wrap ${role}`;
+
+  if(role!=='system'){
+    const rl = document.createElement('div');
+    rl.className='msg-role';
+    rl.textContent = role==='user'?'Bạn':'PGPL';
+    wrap.appendChild(rl);
+  }
+  const b = document.createElement('div');
+  b.className='bubble';
+  b.textContent=text;
+  wrap.appendChild(b);
+  chat.insertBefore(wrap, typing);
+}
+
+function updateStats() {
+  const m=pgpl.mem.stats, ms=pgpl.mesh.stats;
+  document.getElementById('stat-nodes').textContent=m.nodes;
+  document.getElementById('stat-mesh').textContent=ms.vectors;
+  document.getElementById('stat-priv').textContent=ms.blocked;
+  document.getElementById('stat-ms').textContent=pgpl._ms.toFixed(0)+'ms';
+}
+
+function scrollBottom() {
+  const c=document.getElementById('chat');
+  setTimeout(()=>c.scrollTop=c.scrollHeight,50);
+}
+</script>
+</body>
+</html>
